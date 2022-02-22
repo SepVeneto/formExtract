@@ -1,1 +1,7 @@
 .env
+form
+form copy
+*.zip
+__pycache__
+model/imgs/*
+model/res
