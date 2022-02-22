@@ -21,10 +21,12 @@ docker exec -it yolov5 python detect.py --source $pwd --weight $pwd
 167 for *xyxy, conf, cls in reversed(det):
 168    if save_txt:  # Write to file
 169        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-+ 170        cls = names[int(cls.item())]
-171        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
-172        with open(txt_path + '.txt', 'a') as f:
-173            f.write(('%s ' * len(line)).rstrip() % line + '\n')
++ 170        cls_bk = cls
++ 171        cls = names[int(cls.item())]
+172        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
+173        with open(txt_path + '.txt', 'a') as f:
+174          f.write(('%s ' * len(line)).rstrip() % line + '\n')
++ 175        cls = cls_bk
 ```
 
 ## PaddleOCR
