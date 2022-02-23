@@ -64,8 +64,31 @@ def is_in_form_item(l_x1, l_x2, items):
 
 def format_label_info(infos):
   arr = []
-  for pos, cont in infos:
-    arr.append((pos2xywh(pos), cont))
+  prev_i = 0
+  curr_i = 0
+  used_map = {}
+  for prev_i in range(len(infos)):
+    prev_pos, prev_cont = infos[prev_i]
+    prev_x, prev_y, prev_w, prev_h = pos2xywh(prev_pos)
+    for curr_i in range(prev_i, len(infos)):
+      curr_pos, curr_cont = infos[curr_i]
+      curr_x, curr_y, curr_w, curr_h = pos2xywh(curr_pos)
+      if prev_y == curr_y and prev_x == curr_x:
+        continue
+      elif maybe_val(prev_y, curr_y, 24) and maybe_val(curr_x, prev_x, 50):
+        w = max(curr_w, prev_w)
+        h = max(curr_h, prev_h)
+        x = min(prev_x, curr_x)
+        y = min(prev_y, curr_y)
+        used_map[prev_i] = True
+        used_map[curr_i] = True
+        # print()
+        arr.append(((x, y, w, h), (prev_cont[0] + curr_cont[0], prev_cont[1] * curr_cont[1])))
+        break 
+    if used_map.get(prev_i, None):
+      continue
+    used_map[prev_i] = True
+    arr.append(((prev_x, prev_y, prev_w, prev_h), prev_cont))
   return arr
 
 def pos2xywh(pos):

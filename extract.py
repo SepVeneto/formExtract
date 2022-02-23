@@ -107,10 +107,12 @@ def merge_layout(label_layout: dict, item_layout: dict):
 
   prop_index = 0
   props = utils.translation('\n'.join(label_list))
-  print(layout)
   for row in layout:
     for config, type in row:
-      config['prop'] = props[config['prop']].replace('(', '_').replace(')', '_')
+      prop_index = config.get('prop', None)
+      if prop_index == None:
+        continue
+      config['prop'] = props[prop_index].replace('(', '_').replace(')', '_').replace('.', '')
   return layout
 
 def item_layout(items):
