@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 from paddleocr import PaddleOCR
 from string import Template
@@ -52,7 +53,7 @@ def formExtract(img, weight = 'last.pt'):
     res = merge_layout(layout_label, layout_item)
     return res, generate.to_html(res)
 
-def merge_layout(label_layout: dict, item_layout: dict):
+def merge_layout(label_layout: dict, item_layout: dict, dir = 'horizontal'):
   label_keys = list(label_layout.keys())
   item_keys = list(item_layout.keys())
 
@@ -67,12 +68,17 @@ def merge_layout(label_layout: dict, item_layout: dict):
     label_key = label_keys[label_row]
     labels = label_layout.get(label_key)
     labels.sort(key=utils.takeSec)
+    if dir == 'vertical':
+      max_height = utils.cal_max_height(labels)
+      label_key += max_height
     item_key = utils.find_maybe_val(label_key, item_keys)
+    print(item_key)
     row = []
     # y轴的值不近似说明这一行没有识别出表单域，需要用unknown来占位
     if not item_key or not utils.maybe_val(label_key, item_key):
+      print('enter')
       for col in range(len(labels)):
-        label, l_x1, l_x2 = labels[col]
+        label, l_x1, l_x2, *rest = labels[col]
         row.append((label, 'unknown'))
       layout.append(row)
       continue
@@ -81,17 +87,24 @@ def merge_layout(label_layout: dict, item_layout: dict):
     items: list = item_layout.get(item_key)
     # 表单域内容按x轴上的位置升序排列
     items.sort(key=utils.takeSec)
+    print('items:', items)
 
     item_col = 0
     for label_col in range(len(labels)):
-      label, l_x1, l_x2 = labels[label_col]
+      label, l_x1, l_x2, l_y1, l_y2 = labels[label_col]
       # 数组越界，是该行最后一个表单域内存在占位或默认值导致的
       if item_col >= len(items):
         continue
-      item, i_x1, i_x2 = items[item_col]
-      offset = i_x1 - int(l_x2)
+      item, i_x1, i_x2, i_y1, i_y2 = items[item_col]
+      if dir == 'vertical':
+        offset = i_x1 - int(l_x1)
+        offset += (i_y1 - int(l_y2))
+      else:
+        offset = i_x1 - int(l_x2)
+
+      print('offset:', offset)
       # label的位置在表单域内容之内，说明其实是placeholder，或者是默认值
-      if utils.is_in_form_item(l_x1, l_x2, items):
+      if utils.is_in_form_item(l_x1, l_x2, l_y1, l_y2, items, dir):
         continue
       # label与表单域内容不够接近，说明这两个分属不同的表单域
       if offset > 20:
@@ -106,45 +119,69 @@ def merge_layout(label_layout: dict, item_layout: dict):
     layout.append(row)
 
   prop_index = 0
+  print(label_list)
   props = utils.translation('\n'.join(label_list))
   for row in layout:
     for config, type in row:
       prop_index = config.get('prop', None)
       if prop_index == None:
         continue
-      config['prop'] = props[prop_index].replace('(', '_').replace(')', '_').replace('.', '')
+      config['prop'] = re.sub(r'\W', '', props[prop_index])
+      # config['prop'] = props[prop_index].replace('(', '_').replace(')', '_').replace('.', '')
   return layout
 
-def item_layout(items):
+def item_layout(items, dir = 'horizontal'):
   layout = {}
   itemArr = []
   for item in items:
     itemArr.append(utils.changeOrigin(item))
 
   for type, x, y, w, h in itemArr:
-    key = utils.find_key(layout, y)
-    if not layout.get(key, None):
-      layout.setdefault(key, [(type, x, x + w)])
+    if dir == 'horizontal':
+      index = y
+      pos1 = x
+      pos2 = x + w
+      pos3 = y
+      pos4 = y + h
     else:
-      layout[key].append((type, x, x + w))
+      index = x
+      pos1 = y
+      pos2 = y + h
+      pos3 = x
+      pos4 = x + w
+    key = utils.find_key(layout, index)
+    if not layout.get(key, None):
+      layout.setdefault(key, [(type, pos1, pos2, pos3, pos4)])
+    else:
+      layout[key].append((type, pos1, pos2, pos3, pos4))
   return layout
 
-def label_layout(labels):
+def label_layout(labels, dir = 'horizontal'):
   Y = 1
   X = 0
   W = 2
+  H = 3
   TEXT = 0
   layout = {}
   for pos, cont in labels:
-    y = pos[Y]
-    x1 = pos[X]
-    x2 = pos[X] + pos[W]
-    text = utils.formatText(cont[TEXT])
-    key = utils.find_key(layout, y)
-    if not layout.get(key, None):
-      layout.setdefault(key, [(text, x1, x2)])
+    if dir == 'horizontal':
+      index = pos[Y]
+      pos1 = pos[X]
+      pos2 = pos[X] + pos[W]
+      pos3 = pos[Y]
+      pos4 = pos[Y] + pos[H]
     else:
-      layout[key].append((text, x1, x2))
+      index = pos[X]
+      pos1 = pos[Y]
+      pos2 = pos[Y] + pos[H]
+      pos3 = pos[X]
+      pos4 = pos[X] + pos[W]
+    text = utils.formatText(cont[TEXT])
+    key = utils.find_key(layout, index)
+    if not layout.get(key, None):
+      layout.setdefault(key, [(text, pos1, pos2, pos3, pos4)])
+    else:
+      layout[key].append((text, pos1, pos2, pos3, pos4))
   return layout
 
 def run(img):

@@ -45,6 +45,8 @@ def translation(query):
   res = urllib.request.urlopen('http://api.fanyi.baidu.com' + url)
   res = json.loads(res.read())
   props = []
+  if res.get('error_code', None):
+    print(res.get('error_msg'))
   trans_result = res['trans_result']
   for item in trans_result:
     props.append(utils.format_prop(item['dst']))
@@ -56,9 +58,9 @@ def find_maybe_val(val, items):
       return item 
   return None
 
-def is_in_form_item(l_x1, l_x2, items):
-  for type, x1, x2 in items:
-    if l_x2 <= x2 and l_x1 >= x1:
+def is_in_form_item(l_x1, l_x2, l_y1, l_y2, items, dir):
+  for type, x1, x2, y1, y2 in items:
+    if l_x2 <= x2 and l_x1 >= x1 and l_y1 >= y1 and l_y2 <= y2:
       return True
   return False
 
@@ -139,3 +141,11 @@ def formatText(cont: str):
     'label': label,
     'required': required
   }
+
+def cal_max_height(arr):
+  max_height = 0
+  for info, x1, x2, y1, y2 in arr:
+    height = y2 - y1
+    if height > max_height:
+      max_height = height
+  return max_height
